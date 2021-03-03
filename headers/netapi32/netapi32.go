@@ -1,6 +1,7 @@
 package netapi32
 
 import (
+	"C"
 	"errors"
 	"unsafe"
 
@@ -11,12 +12,22 @@ import (
 //https://docs.microsoft.com/en-us/windows/win32/api/lmwksta/ns-lmwksta-wksta_info_102
 type WKSTAInfo102 struct {
 	Wki102_platform_id     uint32
-	wki102_computername    *uint16
-	wki102_langroup        *uint16
+	wki102_computername    *C.char
+	wki102_langroup        *C.char
 	Wki102_ver_major       uint32
 	Wki102_ver_minor       uint32
-	wki102_lanroot         *uint16
+	wki102_lanroot         *C.char
 	Wki102_logged_on_users uint32
+}
+
+type WorkstationInfo struct {
+	PlatformId    uint32
+	ComputerName  string
+	LanGroup      string
+	VersionMajor  uint32
+	VersionMinor  uint32
+	LanRoot       string
+	LoggedOnUsers uint32
 }
 
 var (
@@ -57,33 +68,41 @@ var NetApiStatus = map[uint32]string{
 
 // NetApiBufferFree frees the memory other network management functions use internally to return information.
 // https://docs.microsoft.com/en-us/windows/win32/api/lmapibuf/nf-lmapibuf-netapibufferfree
-func NetApiBufferFree(buffer *WKSTAInfo102) {
+func netApiBufferFree(buffer *WKSTAInfo102) {
 	procNetApiBufferFree.Call(uintptr(unsafe.Pointer(buffer)))
 }
 
 // NetWkstaGetInfo returns information about the configuration of a workstation.
 // https://docs.microsoft.com/en-us/windows/win32/api/lmwksta/nf-lmwksta-netwkstagetinfo
-func NetWkstaGetInfo() (WKSTAInfo102, uint32, error) {
-	// Struct
-	var lpwi *WKSTAInfo102
+func netWkstaGetInfo() (WKSTAInfo102, error) {
+	var lpwi WKSTAInfo102
 	pLpwi := uintptr(unsafe.Pointer(&lpwi))
 
 	// Null value
 	var nullptr = uintptr(0)
-
-	// Level
 	pLevel := uintptr(102)
 
-	// Func call
 	r1, _, _ := procNetWkstaGetInfo.Call(nullptr, pLevel, pLpwi)
 
 	if ret := *(*uint32)(unsafe.Pointer(&r1)); ret != 0 {
-		return WKSTAInfo102{}, ret, errors.New(NetApiStatus[ret])
+		return WKSTAInfo102{}, errors.New(NetApiStatus[ret])
 	}
+	defer netApiBufferFree(&lpwi)
+	return lpwi, nil
+}
 
-	// Derence the pointer and return the object so we can safely clear the buffer.
-	var deref WKSTAInfo102 = *lpwi
-	defer NetApiBufferFree(lpwi)
-
-	return deref, 0, nil
+func GetWorkstationInfo() (WorkstationInfo, error) {
+	info, err := netWkstaGetInfo()
+	if err != nil {
+		return WorkstationInfo{}, err
+	}
+	return WorkstationInfo{
+		PlatformId:    info.Wki102_platform_id,
+		ComputerName:  C.GoString(info.wki102_computername),
+		LanGroup:      C.GoString(info.wki102_langroup),
+		VersionMajor:  info.Wki102_ver_major,
+		VersionMinor:  info.Wki102_ver_minor,
+		LanRoot:       C.GoString(info.wki102_lanroot),
+		LoggedOnUsers: info.Wki102_logged_on_users,
+	}, nil
 }
