@@ -75,20 +75,17 @@ func netApiBufferFree(buffer *WKSTAInfo102) {
 // NetWkstaGetInfo returns information about the configuration of a workstation.
 // https://docs.microsoft.com/en-us/windows/win32/api/lmwksta/nf-lmwksta-netwkstagetinfo
 func netWkstaGetInfo() (WKSTAInfo102, error) {
-	var lpwi WKSTAInfo102
+	var lpwi *WKSTAInfo102 = nil
 	pLpwi := uintptr(unsafe.Pointer(&lpwi))
-
-	// Null value
-	var nullptr = uintptr(0)
 	pLevel := uintptr(102)
 
-	r1, _, _ := procNetWkstaGetInfo.Call(nullptr, pLevel, pLpwi)
+	r1, _, _ := procNetWkstaGetInfo.Call(0, pLevel, pLpwi)
 
 	if ret := *(*uint32)(unsafe.Pointer(&r1)); ret != 0 {
 		return WKSTAInfo102{}, errors.New(NetApiStatus[ret])
 	}
-	defer netApiBufferFree(&lpwi)
-	return lpwi, nil
+	//defer netApiBufferFree(lpwi)
+	return *lpwi, nil
 }
 
 func GetWorkstationInfo() (WorkstationInfo, error) {
