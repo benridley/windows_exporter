@@ -1,5 +1,4 @@
 *.exe
-VERSION
 *.swp
 *.un~
 output/
