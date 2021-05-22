@@ -4,6 +4,7 @@ package collector
 
 import (
 	"github.com/prometheus-community/windows_exporter/headers/sysinfoapi"
+	"github.com/prometheus-community/windows_exporter/headers/winbase"
 	"github.com/prometheus-community/windows_exporter/log"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,7 +62,10 @@ func (c *CSCollector) Collect(ctx *ScrapeContext, ch chan<- prometheus.Metric) e
 
 func (c *CSCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
 	// Get systeminfo for number of processors
-	systemInfo := sysinfoapi.GetSystemInfo()
+	numCpu, err := winbase.GetActiveProcessorCount(winbase.ALL_PROCESSOR_GROUPS)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get memory status for physical memory
 	mem, err := sysinfoapi.GlobalMemoryStatusEx()
@@ -72,7 +76,7 @@ func (c *CSCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, er
 	ch <- prometheus.MustNewConstMetric(
 		c.LogicalProcessors,
 		prometheus.GaugeValue,
-		float64(systemInfo.NumberOfProcessors),
+		float64(numCpu),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
